@@ -1,0 +1,1304 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Бархан-9: Протокол тишины</title>
+<style>
+  :root {
+    --bg: #050705;
+    --panel: #0e120e;
+    --text: #b0bca4;
+    --accent: #6a8e4a;
+    --danger: #a83a2a;
+    --dim: #3a4a32;
+    --glow: rgba(106,142,74,0.18);
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'Courier New', monospace;
+    min-height: 100vh;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    padding: 16px;
+    overflow-x: hidden;
+    position: relative;
+  }
+
+  /* --- АТМОСФЕРНЫЙ ФОН --- */
+  .bg-layer {
+    position: fixed;
+    inset: 0;
+    pointer-events: none;
+    z-index: 0;
+  }
+
+  .bg-radial {
+    background: radial-gradient(circle at 50% 30%, #121c10 0%, #050705 70%);
+  }
+
+  .bg-vignette {
+    background: radial-gradient(ellipse at center, transparent 30%, rgba(0,0,0,0.85) 100%);
+    z-index: 10;
+  }
+
+  .bg-scanlines {
+    background: repeating-linear-gradient(0deg, transparent, transparent 3px, rgba(0,0,0,0.22) 3px, rgba(0,0,0,0.22) 4px);
+    opacity: 0.5;
+    z-index: 9;
+  }
+
+  /* Шум / зерно */
+  .bg-noise {
+    opacity: 0.08;
+    z-index: 8;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='200' height='200'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.6'/%3E%3C/svg%3E");
+    animation: noiseShift 0.3s steps(3) infinite;
+  }
+
+  @keyframes noiseShift {
+    0% { transform: translate(0,0); }
+    33% { transform: translate(-3px,2px); }
+    66% { transform: translate(2px,-3px); }
+    100% { transform: translate(0,0); }
+  }
+
+  /* Вентиляция — полосы */
+  .bg-vents {
+    z-index: 1;
+    opacity: 0.12;
+    background: repeating-linear-gradient(
+      90deg,
+      transparent,
+      transparent 80px,
+      rgba(106,142,74,0.4) 80px,
+      rgba(106,142,74,0.4) 82px
+    );
+    animation: ventDrift 20s linear infinite;
+  }
+
+  @keyframes ventDrift {
+    0% { background-position: 0 0; }
+    100% { background-position: 400px 0; }
+  }
+
+  /* Тревожное свечение при высоком уровне */
+  .bg-alarm {
+    z-index: 2;
+    background: radial-gradient(ellipse at 50% 100%, rgba(168,58,42,0.25) 0%, transparent 60%);
+    opacity: 0;
+    transition: opacity 1s;
+  }
+  .bg-alarm.active { opacity: 1; animation: alarmPulse 2s ease-in-out infinite; }
+
+  @keyframes alarmPulse {
+    0%, 100% { opacity: 0.4; }
+    50% { opacity: 0.9; }
+  }
+
+  /* --- ИГРОВОЙ КОНТЕЙНЕР --- */
+  #game {
+    width: 100%;
+    max-width: 800px;
+    background: rgba(14,18,14,0.92);
+    border: 1px solid #2a3a24;
+    border-radius: 3px;
+    padding: 24px 26px;
+    box-shadow:
+      0 0 80px rgba(0,0,0,0.95),
+      0 0 30px rgba(106,142,74,0.06),
+      inset 0 0 100px rgba(0,0,0,0.6);
+    position: relative;
+    z-index: 20;
+    overflow: hidden;
+    backdrop-filter: blur(1px);
+  }
+
+  #game::before {
+    content: '';
+    position: absolute; inset: 0;
+    background: repeating-linear-gradient(0deg, transparent, transparent 2px, rgba(0,0,0,0.2) 2px, rgba(0,0,0,0.2) 4px);
+    pointer-events: none; opacity: 0.35; z-index: 1;
+  }
+
+  #game::after {
+    content: '';
+    position: absolute;
+    top: -50%; left: -50%;
+    width: 200%; height: 200%;
+    background: radial-gradient(circle at 30% 20%, rgba(106,142,74,0.04) 0%, transparent 50%);
+    pointer-events: none;
+    animation: lightShift 12s ease-in-out infinite;
+    z-index: 0;
+  }
+
+  @keyframes lightShift {
+    0%, 100% { transform: translate(0,0); }
+    50% { transform: translate(-20px, 10px); }
+  }
+
+  .header {
+    display: flex; justify-content: space-between; align-items: center;
+    border-bottom: 1px solid #2a3a24; padding-bottom: 10px; margin-bottom: 18px;
+    font-size: 11px; letter-spacing: 2px; color: var(--dim); flex-wrap: wrap; gap: 8px;
+    position: relative; z-index: 2;
+  }
+
+  .header .org { color: var(--accent); }
+
+  .anxiety { display: flex; align-items: center; gap: 8px; }
+  .anxiety-bar {
+    width: 90px; height: 6px;
+    background: #1a2218;
+    border: 1px solid #2a3a24;
+    overflow: hidden;
+    box-shadow: inset 0 0 6px rgba(0,0,0,0.8);
+  }
+  .anxiety-fill {
+    height: 100%;
+    background: linear-gradient(90deg, var(--accent), #c4a83a, var(--danger));
+    width: 0%;
+    transition: width 0.5s ease;
+    box-shadow: 0 0 8px rgba(168,58,42,0.5);
+  }
+  .anxiety.high .anxiety-fill { animation: pulse 0.8s infinite; }
+  @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.3} }
+
+  #title {
+    font-size: 20px;
+    color: var(--accent);
+    letter-spacing: 4px;
+    margin-bottom: 16px;
+    text-shadow: 0 0 14px var(--glow), 0 0 2px var(--accent);
+    position: relative; z-index: 2;
+    animation: titleFlicker 6s infinite;
+  }
+
+  @keyframes titleFlicker {
+    0%, 95%, 100% { opacity: 1; }
+    96% { opacity: 0.4; }
+    97% { opacity: 1; }
+    98% { opacity: 0.6; }
+  }
+
+  #scene {
+    font-size: 14px;
+    line-height: 1.85;
+    margin-bottom: 20px;
+    min-height: 80px;
+    white-space: pre-wrap;
+    position: relative; z-index: 2;
+    text-shadow: 0 0 1px rgba(176,188,164,0.3);
+    animation: sceneFade 0.6s ease;
+  }
+
+  @keyframes sceneFade {
+    from { opacity: 0; transform: translateY(4px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+
+  #scene .warn { color: var(--danger); font-weight: bold; text-shadow: 0 0 6px rgba(168,58,42,0.4); }
+  #scene .note { color: var(--dim); font-style: italic; }
+
+  #choices { display: flex; flex-direction: column; gap: 8px; position: relative; z-index: 2; }
+
+  button.choice {
+    background: linear-gradient(90deg, #141c12 0%, #161e14 100%);
+    border: 1px solid #2a3a24;
+    color: var(--text);
+    font-family: inherit;
+    font-size: 13px;
+    padding: 11px 16px;
+    text-align: left;
+    cursor: pointer;
+    transition: all 0.2s;
+    border-radius: 2px;
+    position: relative;
+    overflow: hidden;
+  }
+
+  button.choice::after {
+    content: '';
+    position: absolute;
+    top: 0; left: -100%;
+    width: 100%; height: 100%;
+    background: linear-gradient(90deg, transparent, rgba(106,142,74,0.12), transparent);
+    transition: left 0.4s;
+  }
+
+  button.choice:hover::after { left: 100%; }
+
+  button.choice:hover {
+    background: #1e2a1a;
+    border-color: var(--accent);
+    padding-left: 22px;
+    box-shadow: 0 0 12px rgba(106,142,74,0.15);
+  }
+
+  button.choice::before {
+    content: '▸';
+    position: absolute;
+    left: 7px;
+    opacity: 0;
+    color: var(--accent);
+    transition: opacity 0.2s;
+  }
+
+  button.choice:hover::before { opacity: 1; }
+
+  button.choice:disabled { opacity: 0.3; cursor: not-allowed; }
+
+  #log {
+    margin-top: 16px;
+    border-top: 1px dashed #2a3a24;
+    padding-top: 10px;
+    font-size: 11px;
+    color: var(--dim);
+    max-height: 80px;
+    overflow-y: auto;
+    position: relative; z-index: 2;
+    scrollbar-width: thin;
+    scrollbar-color: #2a3a24 transparent;
+  }
+
+  #log div { margin-bottom: 3px; animation: logIn 0.3s ease; }
+  @keyframes logIn { from { opacity: 0; } to { opacity: 1; } }
+
+  #log .item { color: var(--accent); }
+
+  .inventory {
+    font-size: 11px;
+    color: var(--dim);
+    margin-top: 8px;
+    position: relative; z-index: 2;
+    min-height: 16px;
+  }
+  .inventory span {
+    color: var(--accent);
+    text-shadow: 0 0 4px rgba(106,142,74,0.4);
+  }
+  .inventory .label { color: var(--dim); letter-spacing: 1px; }
+
+  .save-indicator {
+    font-size: 10px;
+    color: var(--dim);
+    text-align: right;
+    margin-top: 6px;
+    position: relative; z-index: 2;
+    min-height: 14px;
+    transition: opacity 0.4s;
+  }
+
+  .glitch { animation: glitch 0.25s infinite; }
+  @keyframes glitch {
+    0%{transform:translate(0)} 25%{transform:translate(-2px,1px)}
+    50%{transform:translate(2px,-1px)} 75%{transform:translate(-1px,-1px)}
+    100%{transform:translate(0)}
+  }
+
+  .ending-title {
+    font-size: 18px;
+    color: var(--danger);
+    letter-spacing: 3px;
+    margin: 16px 0;
+    text-align: center;
+    text-shadow: 0 0 12px rgba(168,58,42,0.5);
+    animation: endingPulse 3s ease-in-out infinite;
+  }
+
+  @keyframes endingPulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.7; }
+  }
+
+  .ending-badge {
+    display: inline-block;
+    font-size: 10px;
+    color: var(--dim);
+    border: 1px solid var(--dim);
+    padding: 2px 8px;
+    margin-top: 8px;
+    letter-spacing: 2px;
+    text-align: center;
+  }
+
+  .restart {
+    margin-top: 14px;
+    width: 100%;
+    text-align: center;
+    background: transparent;
+    border: 1px solid var(--dim);
+  }
+
+  .restart:hover { background: #1a2218; border-color: var(--accent); }
+
+  .ending-list {
+    margin-top: 12px;
+    font-size: 11px;
+    color: var(--dim);
+    text-align: center;
+    line-height: 1.8;
+  }
+
+  .ending-list .found { color: var(--accent); }
+  .ending-list .missing { color: #2a3a24; }
+</style>
+</head>
+<body>
+
+<div class="bg-layer bg-radial"></div>
+<div class="bg-layer bg-vents"></div>
+<div class="bg-layer bg-noise"></div>
+<div class="bg-layer bg-alarm" id="bg-alarm"></div>
+<div class="bg-layer bg-scanlines"></div>
+<div class="bg-layer bg-vignette"></div>
+
+<div id="game">
+  <div class="header">
+    <span class="org">БАРХАН-9 // К.О.Н.Т.У.Р.</span>
+    <div class="anxiety" id="anxiety-wrap">
+      <span>ТРЕВОГА</span>
+      <div class="anxiety-bar"><div class="anxiety-fill" id="anxiety-fill"></div></div>
+      <span id="anxiety-num">0</span>
+    </div>
+  </div>
+  <div id="title">ПРОТОКОЛ ТИШИНЫ</div>
+  <div id="scene"></div>
+  <div id="choices"></div>
+  <div class="inventory" id="inventory"></div>
+  <div id="log"></div>
+  <div class="save-indicator" id="save-indicator"></div>
+</div>
+
+<script>
+// ============ АУДИО ДВИЖОК ============
+const AudioEngine = {
+  ctx: null, master: null, humOsc: null,
+  init() {
+    if (this.ctx) return;
+    try {
+      this.ctx = new (window.AudioContext || window.webkitAudioContext)();
+      this.master = this.ctx.createGain();
+      this.master.gain.value = 0.12;
+      this.master.connect(this.ctx.destination);
+    } catch(e) {}
+  },
+  resume() { if (this.ctx && this.ctx.state === 'suspended') this.ctx.resume(); },
+  startHum() {
+    this.init();
+    if (!this.ctx || this.humOsc) return;
+    this.humOsc = this.ctx.createOscillator();
+    this.humOsc.type = 'sawtooth';
+    this.humOsc.frequency.value = 42;
+    const g = this.ctx.createGain(); g.gain.value = 0.07;
+    const f = this.ctx.createBiquadFilter(); f.type = 'lowpass'; f.frequency.value = 180;
+    this.humOsc.connect(f); f.connect(g); g.connect(this.master);
+    this.humOsc.start();
+  },
+  stopHum() {
+    if (this.humOsc) { try { this.humOsc.stop(); } catch(e){} this.humOsc = null; }
+  },
+  beep(freq=440, dur=0.08, type='square', vol=0.1) {
+    this.init(); if (!this.ctx) return;
+    const o = this.ctx.createOscillator(), g = this.ctx.createGain();
+    o.type = type; o.frequency.value = freq;
+    g.gain.setValueAtTime(vol, this.ctx.currentTime);
+    g.gain.exponentialRampToValueAtTime(0.001, this.ctx.currentTime + dur);
+    o.connect(g); g.connect(this.master);
+    o.start(); o.stop(this.ctx.currentTime + dur);
+  },
+  alarm() { this.beep(880,0.15,'sawtooth',0.1); setTimeout(()=>this.beep(660,0.2,'sawtooth',0.08),120); },
+  staticNoise(dur=0.3) {
+    this.init(); if (!this.ctx) return;
+    const size = this.ctx.sampleRate * dur;
+    const buf = this.ctx.createBuffer(1, size, this.ctx.sampleRate);
+    const d = buf.getChannelData(0);
+    for (let i=0;i<size;i++) d[i] = Math.random()*2-1;
+    const src = this.ctx.createBufferSource(); src.buffer = buf;
+    const g = this.ctx.createGain(); g.gain.value = 0.05;
+    const f = this.ctx.createBiquadFilter(); f.type='bandpass'; f.frequency.value=1200;
+    src.connect(f); f.connect(g); g.connect(this.master);
+    src.start(); src.stop(this.ctx.currentTime + dur);
+  },
+  thud() { this.beep(80,0.3,'sine',0.18); },
+  glitch() { this.beep(1200,0.05,'sawtooth',0.07); setTimeout(()=>this.beep(400,0.1,'square',0.05),60); },
+  endingSound(type) {
+    if (type === 'good') { this.beep(440,1.5,'sine',0.06); }
+    else if (type === 'bad') { this.beep(110,2,'sawtooth',0.1); }
+    else { this.staticNoise(1.5); }
+  }
+};
+
+// ============ СОСТОЯНИЕ ============
+const defaultState = () => ({
+  anxiety: 0, flags: {}, items: [], scene: 'start',
+  visited: [], logLines: [], endingsFound: []
+});
+
+let state = defaultState();
+const SAVE_KEY = 'barhan9_v2_save';
+const ENDINGS_KEY = 'barhan9_endings';
+
+// Загрузка списка найденных концовок
+function loadEndingsList() {
+  try { return JSON.parse(localStorage.getItem(ENDINGS_KEY)) || []; } catch(e){ return []; }
+}
+function saveEndingFound(id) {
+  const list = loadEndingsList();
+  if (!list.includes(id)) {
+    list.push(id);
+    try { localStorage.setItem(ENDINGS_KEY, JSON.stringify(list)); } catch(e){}
+  }
+}
+
+// ============ СЦЕНЫ ============
+const scenes = {
+  start: {
+    title: 'ПРОЛОГ: ПРИБЫТИЕ',
+    text: `1989 год. Закрытый город Бархан-9.
+Серые пятиэтажки из пористого бетона. Вечная осень.
+На горизонте — чёрная громада Гигахрущёвки: сто этажей мёртвого бетона за трёхметровым забором.
+
+Ты — младший архивист организации «К.О.Н.Т.У.Р.»
+(Контроль Объектов Неизвестного Типа и Условной Реальности).
+
+Задание: проверить архив городской администрации.
+Последняя запись диспетчера: "...Оно уже в вентиляции. Не включайте свет в коридоре..."
+
+На КПП никого. Шлагбаум поднят. Радио шипит.`,
+    onEnter: () => { AudioEngine.startHum(); AudioEngine.staticNoise(0.5); },
+    choices: [
+      { text: 'Зайти в будку КПП и проверить журнал', next: 'kp_a' },
+      { text: 'Игнорировать будку и ехать к администрации', next: 'kp_b' },
+      { text: 'Проверить рацию на частоте К.О.Н.Т.У.Р.', next: 'kp_radio' }
+    ]
+  },
+
+  kp_radio: {
+    title: 'ГЛАВА 1: РАДИО',
+    text: `Частота 41.0 МГц. Сквозь треск — сухой служебный голос:
+
+"Внимание. Объект 9. Режим особого положения.
+Гражданам запрещено покидать город без разрешения НО.
+При симптомах Спорового Синдрома — в карантинную зону.
+Не приближайтесь к вентиляционным решёткам. Не отвечайте на голоса.
+Помните: уксус замедляет. Споринол — не лечит."
+
+Сигнал обрывается.`,
+    onEnter: () => { AudioEngine.staticNoise(0.8); addAnxiety(1); log('Перехвачена служебная передача.'); },
+    choices: [
+      { text: 'Проверить журнал КПП', next: 'kp_a' },
+      { text: 'Ехать к администрации', next: 'admin' }
+    ]
+  },
+
+  kp_a: {
+    title: 'ГЛАВА 1: ЖУРНАЛ КПП',
+    text: `Журнал въездов. Последняя запись — 14 дней назад.
+Ниже, той же рукой, но дрожащим почерком:
+"Они не уезжали. Они внутри."
+
+В папке с грифом "НО" — инструкция для жителей:
+"Большая часть зданий построена с использованием формулы пористого бетона.
+Для выезда необходимо разрешение НО.
+Особый режим сохранялся до 2003 года..."
+
+2003. Взрыв на военных складах. Заражённая пыль над городом.
+К 2005-му — первые симптомы. 8 марта — экстренное сообщение.
+Квартиры прошли через процесс "Сочленения".`,
+    onEnter: () => { addAnxiety(2); log('Прочитана инструкция НО.'); addItem('Инструкция для жителей'); },
+    choices: [{ text: 'Идти к администрации', next: 'admin' }]
+  },
+
+  kp_b: {
+    title: 'ГЛАВА 1: ПУСТЫЕ УЛИЦЫ',
+    text: `Пустые улицы. Дома целы, но в окнах — никого.
+На детской площадке карусель вращается сама.
+Ветер несёт запах озона и мокрой шерсти.
+
+На доме — табличка: "УКРЫТИЕ. СПОРИНОЛ. ПРОФИЛАКТИКА."
+Стрелка вниз, к подвалу.
+
+Вдалеке у площадки что-то шевелится. Большое. С круглой головой.`,
+    onEnter: () => { addAnxiety(1); AudioEngine.thud(); },
+    choices: [
+      { text: 'Осмотреть площадку', next: 'gabar_encounter' },
+      { text: 'Ехать к администрации', next: 'admin' },
+      { text: 'Спуститься в укрытие', next: 'shelter' }
+    ]
+  },
+
+  shelter: {
+    title: 'ГЛАВА 1: УКРЫТИЕ',
+    text: `Подвал. Полки с коробками "СПОРИНОЛ".
+Записка:
+
+"Споринол выписывался пациентам 60+.
+При передозировке у молодых — ПЛР.
+В декабре 2005 бездомная женщина нашла пакет таблеток.
+Приняла за лекарство от кашля. Через неделю — тяжёлая ПЛР.
+Споровый Синдром. Скрылась в канализации.
+Операция по поимке длилась полгода.
+В тоннеле нашли логово: коконы, обмотанные бинтами,
+пропитанными споровым субстратом."
+
+На стене — решётка. Из неё доносится тяжёлое дыхание.`,
+    onEnter: () => { addAnxiety(2); addItem('Записка о ПЛР'); log('Найдена записка о ПЛР.'); AudioEngine.staticNoise(0.4); },
+    choices: [
+      { text: 'Взять таблетки Споринола', next: 'shelter_pills' },
+      { text: 'Не приближаться и уйти', next: 'admin' }
+    ]
+  },
+
+  shelter_pills: {
+    title: 'ГЛАВА 1: УКРЫТИЕ',
+    text: `Ты берёшь пачку. На обратной стороне:
+"Не превышать дозу. При появлении третьего глаза — сообщить в НО."
+
+Дыхание в решётке становится громче. Затем — голос. Твой голос:
+"Ты уже слышишь шаги за спиной?"`,
+    onEnter: () => { addAnxiety(2); addItem('Споринол (1 пачка)'); state.flags.voiceStolen = true; log('Флаг: голос украден.'); AudioEngine.glitch(); },
+    choices: [
+      { text: 'Бежать к администрации', next: 'admin' },
+      { text: 'Обернуться', next: 'shelter_turn' }
+    ]
+  },
+
+  shelter_turn: {
+    title: 'ГЛАВА 1: УКРЫТИЕ',
+    text: `В углу подвала — вытянутая тёмная фигура.
+Она не двигается. Но ты слышишь, как она дышит.
+
+ПЕРЕКОЖНИК. Сущность, которая растёт из стены.
+Атакует при приближении.
+
+Ты медленно отступаешь. Фигура остаётся на месте.`,
+    onEnter: () => { addAnxiety(3); log('Встречен Перекожник.'); AudioEngine.thud(); },
+    choices: [{ text: 'Уйти к администрации', next: 'admin' }]
+  },
+
+  gabar_encounter: {
+    title: 'ГЛАВА 1: ПЛОЩАДКА',
+    text: `Ты подходишь ближе. Карусель останавливается.
+На сиденье — детский рюкзак. Внутри — тетрадь:
+"Я НЕ ОТЗЫВАЮСЬ НА СВОЁ ИМЯ. Я ОТЗЫВАЮСЬ НА ИМЯ МАМЫ."
+
+Сзади хрустит гравий. Ты оборачиваешься.
+
+ГАБАР. Габаритная сущность с головой игрушки-Капитошки.
+Длинные щупальца. Агрессивен при любом поведении.
+Правило: чтобы он не схватил — нужно постоянно двигаться.`,
+    onEnter: () => { addAnxiety(3); log('Встречен Габар.'); AudioEngine.alarm(); },
+    choices: [
+      { text: 'Бежать не оглядываясь', next: 'gabar_run' },
+      { text: 'Медленно пятиться', next: 'gabar_back' },
+      { text: 'Стоять неподвижно', next: 'gabar_freeze' }
+    ]
+  },
+
+  gabar_run: {
+    title: 'ГЛАВА 1: ПЛОЩАДКА',
+    text: `Ты бежишь. Габар не преследует.
+Он просто смотрит. И улыбается — если это можно назвать улыбкой.
+Ты добегаешь до администрации.`,
+    onEnter: () => { addAnxiety(1); },
+    choices: [{ text: 'Войти', next: 'admin' }]
+  },
+
+  gabar_back: {
+    title: 'ГЛАВА 1: ПЛОЩАДКА',
+    text: `Ты пятишься. Габар делает шаг вперёд. Ты — ещё шаг. Он — ещё.
+Потом останавливается. Ты уже у дверей администрации.`,
+    onEnter: () => { addAnxiety(2); },
+    choices: [{ text: 'Войти', next: 'admin' }]
+  },
+
+  gabar_freeze: {
+    title: 'ГЛАВА 1: ПЛОЩАДКА',
+    text: `Ты стоишь. Габар наклоняет голову. Щупальце тянется к тебе. Медленно.
+Ты отпрыгиваешь в последний момент. Бежишь.
+За спиной — звук, похожий на смех. Или на хрип.`,
+    onEnter: () => { addAnxiety(4); AudioEngine.glitch(); },
+    choices: [{ text: 'Добраться до администрации', next: 'admin' }]
+  },
+
+  admin: {
+    title: 'ГЛАВА 2: АДМИНИСТРАЦИЯ',
+    text: `Холл администрации. Запах озона и мокрой шерсти.
+На стойке — папка: "СПОРИНОЛ. ПРОТОКОЛ 9".
+Рядом — телефон. Он звонит.
+
+На стене — портрет мэра: "Ковалёв В.А."
+В новогоднем обращении он "напомнил о важности соблюдения установленных правил".
+В связи с "реформацией организации К.О.Н.Т.У.Р." в городе ужесточили правила.
+
+Телефон продолжает звонить.`,
+    onEnter: () => { AudioEngine.beep(440, 0.2, 'sine', 0.08); },
+    choices: [
+      { text: 'Ответить на звонок', next: 'admin_phone' },
+      { text: 'Открыть папку', next: 'admin_folder' },
+      { text: 'Идти в подвал', next: 'basement' }
+    ]
+  },
+
+  admin_phone: {
+    title: 'ГЛАВА 2: ТЕЛЕФОН',
+    text: `Тишина. Потом — шёпот. Женский. Тот же, что в радио.
+
+"Первый медицинский фильм... Споровый синдром... Объект 80...
+Одна из версий препарата не останавливала процесс... Только замедляла...
+Респираторное решение... постоянная подача...
+Сознание сохранялось... мутации продолжались..."
+
+Пауза. Затем — громче:
+"Ты слышишь шаги за спиной?"
+
+Ты оборачиваешься. Коридор пуст. Дверь в подвал открыта.`,
+    onEnter: () => { addAnxiety(2); AudioEngine.staticNoise(0.6); log('Получена информация об Объекте 80.'); },
+    choices: [
+      { text: 'Открыть папку', next: 'admin_folder' },
+      { text: 'Спуститься в подвал', next: 'basement' }
+    ]
+  },
+
+  admin_folder: {
+    title: 'ГЛАВА 2: ПАПКА',
+    text: `"СПОРИНОЛ. ПРОТОКОЛ 9."
+
+Отчёт о побочных эффектах:
+"Пациенты видят 'соседей' — фигуры в вентиляционных решётках.
+На 9-й день перестают отзываться на свои имена.
+Начинают отзываться на чужие."
+
+Приписка другим почерком:
+"Мэр Ковалёв — первый. Он больше не отзывается на 'Александр'.
+Отзывается на 'Тишина'."
+
+Под папкой — ключ с биркой "Вент-шахта 9" и карта города.`,
+    onEnter: () => { addAnxiety(1); addItem('Ключ от вент-шахты'); addItem('Карта города'); log('Найдены ключ и карта.'); },
+    choices: [
+      { text: 'Идти в подвал', next: 'basement' },
+      { text: 'Найти кабинет мэра', next: 'mayor' }
+    ]
+  },
+
+  basement: {
+    title: 'ГЛАВА 3: ВЕНТИЛЯЦИЯ',
+    text: `Подвал. Гул вентиляции. В решётке — глаз. Он моргает.
+Сзади кто-то касается плеча. Ты оборачиваешься — никого.
+
+Из решётки доносится голос. Твой голос. Зовёт тебя по имени.
+
+В глубине подвала — тёмный узкий проход. Пахнет сыростью и живым.
+На стене нацарапано: "КАНАЛОТВАРЬ. НЕ ВХОДИ В УЗКИЕ ПРОСТРАНСТВА."`,
+    onEnter: () => { addAnxiety(3); AudioEngine.startHum(); AudioEngine.staticNoise(0.4); log('Вход в вентиляционную систему.'); },
+    choices: [
+      { text: 'Ответить: "Я здесь"', next: 'vent_answer', condition: () => !state.flags.ventDone },
+      { text: 'Молчать и идти дальше', next: 'vent_silent', condition: () => !state.flags.ventDone },
+      { text: 'Заклеить решётку скотчем', next: 'vent_tape', condition: () => !state.flags.ventDone },
+      { text: 'Зайти в тёмный проход', next: 'kanalotvar', condition: () => !state.flags.kanalotvarDone },
+      { text: 'Подняться наверх, к мэру', next: 'mayor' }
+    ]
+  },
+
+  vent_answer: {
+    title: 'ГЛАВА 3: ВЕНТИЛЯЦИЯ',
+    text: `Голос замолкает.
+Затем из решётки — спокойно, почти довольно:
+"Теперь я знаю, как ты звучишь."
+
+Гул стихает. Ты слышишь собственное дыхание.
+И ещё одно дыхание. Рядом.`,
+    onEnter: () => { addAnxiety(4); state.flags.ventDone = true; state.flags.voiceStolen = true; log('Голос украден.'); AudioEngine.glitch(); },
+    choices: [{ text: 'Подняться наверх', next: 'mayor' }]
+  },
+
+  vent_silent: {
+    title: 'ГЛАВА 3: ВЕНТИЛЯЦИЯ',
+    text: `Ты молчишь. Голос повторяет твоё имя. Снова и снова.
+Он не двигается с места. Но с каждым разом звучит всё более... твоим.
+Ты выходишь из подвала. Голос остаётся позади.`,
+    onEnter: () => { addAnxiety(1); state.flags.ventDone = true; },
+    choices: [{ text: 'Подняться наверх', next: 'mayor' }]
+  },
+
+  vent_tape: {
+    title: 'ГЛАВА 3: ВЕНТИЛЯЦИЯ',
+    text: `Скотч не липнет. Покрывается изнутри влажным.
+Но решётка замолкает.
+
+В углу — бутылка с этикеткой "УКСУС".
+Записка: "Замедляет. Не лечит."`,
+    onEnter: () => { addAnxiety(2); state.flags.ventDone = true; addItem('Уксус (бутылка)'); addItem('Скотч (использован)'); log('Найден уксус.'); },
+    choices: [{ text: 'Подняться наверх', next: 'mayor' }]
+  },
+
+  kanalotvar: {
+    title: 'ГЛАВА 3: КАНАЛОТВАРЬ',
+    text: `Узкий проход. Темно. Стены влажные.
+Впереди что-то шевелится.
+
+КАНАЛОТВАРЬ. Тёмные, узкие, изолированные пространства.
+Выжидает жертву месяцами. Третий глаз. Четвёртый.
+Мутации морды.
+
+Оно смотрит на тебя. Оно ждало.
+Ты медленно отступаешь. Оно не преследует.`,
+    onEnter: () => { addAnxiety(4); state.flags.kanalotvarDone = true; log('Встречена Каналотварь.'); AudioEngine.thud(); AudioEngine.glitch(); },
+    choices: [{ text: 'Вернуться в подвал', next: 'basement' }]
+  },
+
+  mayor: {
+    title: 'ГЛАВА 4: КАБИНЕТ МЭРА',
+    text: `Кабинет мэра. Свет горит.
+За столом — человек в костюме. Не двигается.
+Бейдж: "Ковалёв В.А." Смотрит в стену.
+
+На стене — карта города с отметками.
+Одна — твой дом. Другая — администрация. Третья — вент-шахта 9.
+
+На столе — диктофон. Кнопка "ВОСПРОИЗВЕСТИ".`,
+    onEnter: () => { addAnxiety(1); AudioEngine.beep(220, 0.5, 'sine', 0.05); },
+    choices: [
+      { text: 'Нажать "ВОСПРОИЗВЕСТИ"', next: 'mayor_tape', condition: () => !state.flags.tapePlayed },
+      { text: 'Заговорить с мэром', next: 'mayor_speak' },
+      { text: 'Изучить карту', next: 'mayor_map', condition: () => !state.flags.mapRead },
+      { text: 'Выйти и запереть дверь', next: 'mayor_lock' }
+    ]
+  },
+
+  mayor_tape: {
+    title: 'ГЛАВА 4: ЗАПИСЬ',
+    text: `Диктофон щёлкает. Голос мэра — усталый, человеческий:
+
+"Запись девять. Март 2005.
+Я не должен был это подписывать.
+Споринол. Для пожилых. Для профилактики.
+Никто не сказал, что будет, если молодая женщина найдёт пакет.
+Если примет всё. Если ПЛР...
+Она была в канализации полгода. Полгода.
+Мы обрабатывали стены Йод-Резорцинолом-А.
+Она ненавидела этот запах.
+Потом нашли логово. Коконы. Остатки животных.
+Она уже не была человеком.
+Я подписал приказ. Теперь я не отзываюсь на 'Александр'.
+Я отзываюсь на 'Тишина'.
+Не включайте свет в коридоре. Оно уже в вентиляции."
+
+Запись обрывается.`,
+    onEnter: () => { addAnxiety(3); state.flags.tapePlayed = true; log('Прослушана запись мэра.'); AudioEngine.staticNoise(0.7); },
+    choices: [
+      { text: 'Заговорить с мэром', next: 'mayor_speak' },
+      { text: 'Изучить карту', next: 'mayor_map', condition: () => !state.flags.mapRead }
+    ]
+  },
+
+  mayor_speak: {
+    title: 'ГЛАВА 4: МЭР',
+    text: `Мэр медленно поворачивает голову. Глаза — белые.
+Открывает рот. Говорит твоим голосом:
+
+"Спасибо, что пришёл. Теперь нас двое."
+
+В углу кабинета что-то шевелится.
+Фигура у стены. Вытянутая. Была здесь всё время.
+ПЕРЕКОЖНИК.`,
+    onEnter: () => { addAnxiety(5); state.flags.metMayor = true; log('Мэр заговорил твоим голосом.'); AudioEngine.glitch(); AudioEngine.thud(); },
+    choices: [
+      { text: 'Изучить карту', next: 'mayor_map' },
+      { text: 'Выйти из кабинета', next: 'mayor_lock' }
+    ]
+  },
+
+  mayor_map: {
+    title: 'ГЛАВА 4: КАРТА',
+    text: `Карта Бархана-9. Отмечены места, где ты был.
+И места, где не был:
+"Объект 80. Больница. Закрытое крыло."
+"Канализация. Логово."
+"Гигахрущёвка. 100 этажей. Трёхметровый забор."
+
+Приписка: "Хор обращается к людям с тяжёлым Споровым Синдромом.
+Направляет на глубинные уровни. Цель — Контур-1."
+
+Рядом — схема вентиляции. Вент-шахта 9 ведёт к выходу.`,
+    onEnter: () => { addAnxiety(2); state.flags.mapRead = true; log('Изучена карта города.'); },
+    choices: [
+      { text: 'Идти к вент-шахте', next: 'shaft' },
+      { text: 'Заговорить с мэром', next: 'mayor_speak', condition: () => !state.flags.metMayor }
+    ]
+  },
+
+  mayor_lock: {
+    title: 'ГЛАВА 4: КОРИДОР',
+    text: `Дверь заперта. Изнутри — стук. Ровный, ритмичный. Как метроном.
+Он не прекращается.
+
+В конце коридора — дверь "ВЕНТ-ШАХТА 9".
+Рядом — металлическая дверь. Табличка:
+"ОБЪЕКТ 80. НЕ ВХОДИТЬ. КАРАНТИН."`,
+    onEnter: () => { addAnxiety(3); AudioEngine.thud(); },
+    choices: [
+      { text: 'Идти к вент-шахте 9', next: 'shaft' },
+      { text: 'Открыть дверь Объекта 80', next: 'object80', condition: () => !state.flags.object80Done }
+    ]
+  },
+
+  object80: {
+    title: 'ГЛАВА 4: ОБЪЕКТ 80',
+    text: `Больничный коридор. Белый кафель. Мигающая лампа.
+Запах Йод-Резорцинола-А.
+
+На стенах — следы ногтей. Глубокие.
+На полу — пустые пачки Споринола.
+В конце — палата. Дверь приоткрыта.
+
+Койка. Респираторная маска, подключённая к системе подачи.
+Система работает. Койка пуста.
+
+На стене бурым: "Я НЕ ОТЗЫВАЮСЬ. Я ЖДУ."`,
+    onEnter: () => { addAnxiety(3); state.flags.object80Done = true; log('Объект 80 исследован.'); AudioEngine.staticNoise(0.6); },
+    choices: [
+      { text: 'Вернуться в коридор', next: 'mayor_lock' },
+      { text: 'Осмотреть систему подачи', next: 'object80_system' }
+    ]
+  },
+
+  object80_system: {
+    title: 'ГЛАВА 4: СИСТЕМА',
+    text: `Ты подходишь к системе. Баллоны. Трубки. Респиратор.
+Всё ещё работает. Подача препарата идёт.
+
+На трубке — записка: "Постоянная подача. Сознание сохраняется.
+Мутации продолжаются. Пациент не умирает. Пациент не спит.
+Пациент ждёт."
+
+Ты слышишь шаги за спиной.
+Оборачиваешься. В дверях палаты — фигура.
+Слишком знакомая фигура.`,
+    onEnter: () => { addAnxiety(4); state.flags.object80System = true; AudioEngine.alarm(); },
+    choices: [
+      { text: 'Бежать к вент-шахте', next: 'shaft' },
+      { text: 'Стоять и смотреть', next: 'object80_figure' }
+    ]
+  },
+
+  object80_figure: {
+    title: 'ГЛАВА 4: ФИГУРА',
+    text: `Фигура в дверях. Это ты.
+Точная копия. В той же одежде. С тем же лицом.
+Но глаза — не твои. Слишком много глаз.
+
+Мимик второго порядка. Очень похож. Но им не является.
+
+Он не двигается. Он просто стоит и смотрит.
+И ты понимаешь: если сделать вид, что не замечаешь подмены — он не тронет.
+Если распознать — убьёт.`,
+    onEnter: () => { addAnxiety(5); log('Встречен Мимик второго порядка.'); AudioEngine.glitch(); },
+    choices: [
+      { text: 'Сделать вид, что не замечаешь', next: 'shaft' },
+      { text: 'Сказать: "Я знаю, кто ты"', next: 'mimik_attack' }
+    ]
+  },
+
+  mimik_attack: {
+    title: 'ГЛАВА 4: МИМИК',
+    text: `Ты говоришь это вслух. Фигура наклоняет голову.
+Что-то в её лице меняется. Черты расплываются.
+Глаза — теперь их точно больше десятка — смотрят прямо на тебя.
+
+Он делает шаг вперёд.`,
+    onEnter: () => { addAnxiety(6); AudioEngine.alarm(); AudioEngine.glitch(); state.flags.mimikAttacked = true; },
+    choices: [
+      { text: 'Бежать к вент-шахте', next: 'shaft_escape' }
+    ]
+  },
+
+  shaft_escape: {
+    title: 'ФИНАЛ: ПОБЕГ',
+    text: `Ты бежишь. Мимик за спиной — но не догоняет.
+Он просто идёт. Ровным шагом. Не отставая.
+
+Ты влетаешь в вент-шахту 9. Фигура в форме К.О.Н.Т.У.Р. стоит у входа.
+Она не двигается. Только смотрит.`,
+    onEnter: () => { addAnxiety(1); AudioEngine.staticNoise(0.5); },
+    choices: [
+      { text: 'Пройти к свету', next: 'ending_echo' },
+      { text: 'Забрать рацию', next: 'ending_protocol' }
+    ]
+  },
+
+  shaft: {
+    title: 'ФИНАЛ: ВЕНТ-ШАХТА 9',
+    text: `Ты открываешь шахту ключом. Внутри — узкий проход. В конце — свет.
+Но перед тобой стоит фигура в форме К.О.Н.Т.У.Р.
+Она держит рацию. Не двигается.
+
+На стене — надпись: "ВЫХОД НЕ СУЩЕСТВУЕТ."
+Рация шипит.`,
+    onEnter: () => { addAnxiety(1); AudioEngine.staticNoise(0.5); },
+    choices: [
+      { text: 'Пройти мимо фигуры к свету', next: 'ending_echo' },
+      { text: 'Забрать рацию и вызвать подмогу', next: 'ending_protocol' },
+      { text: 'Вернуться в город и спасти тех, кто ещё отзывается', next: 'ending_new' },
+      { text: 'Спросить фигуру: "Кто ты?"', next: 'shaft_ask', condition: () => !state.flags.askedEntity },
+      { text: 'Остаться в шахте и слушать голоса', next: 'ending_listen' }
+    ]
+  },
+
+  shaft_ask: {
+    title: 'ФИНАЛ: ОТВЕТ',
+    text: `Фигура поворачивает голову. Медленно.
+Из-под капюшона — не лицо. Только глаза. Слишком много.
+
+Голос — не твой. Не женский. Не мужской. Просто голос:
+
+"Я — то, что осталось от Бархана-9.
+Город был экспериментом. Объект 9. Закрытая система.
+Грибок О-41. Споринол. Всё это — один организм.
+Я — его память.
+Ты можешь уйти. Но ты уже часть архива."
+
+Фигура отступает в сторону.`,
+    onEnter: () => { addAnxiety(2); state.flags.askedEntity = true; log('Получен ответ от сущности.'); },
+    choices: [
+      { text: 'Пройти к свету', next: 'ending_echo' },
+      { text: 'Забрать рацию', next: 'ending_protocol' },
+      { text: 'Вернуться в город', next: 'ending_new' },
+      { text: 'Остаться и слушать', next: 'ending_listen' }
+    ]
+  },
+
+  // --- КОНЦОВКИ ---
+  ending_echo: {
+    title: 'КОНЦОВКА: "ЭХО"',
+    text: `Ты выходишь на поверхность. Город за спиной.
+Рация шипит: "Бархан-9, приём. Вы живы?"
+
+Ты отвечаешь. Голос в рации — твой.
+
+Но где-то в глубине шахты кто-то другой повторяет твои слова.
+С той же интонацией. С той же паузой.
+
+Ты больше не уверен, кто из вас говорит первым.
+
+// АРХИВ К.О.Н.Т.У.Р. // ЗАПИСЬ 9-ГО УРОВНЯ // ДОСТУП РАЗРЕШЁН`,
+    ending: 'echo', endingType: 'neutral',
+    onEnter: () => { AudioEngine.stopHum(); AudioEngine.endingSound('neutral'); }
+  },
+
+  ending_protocol: {
+    title: 'КОНЦОВКА: "ПРОТОКОЛ ТИШИНЫ"',
+    text: `Рация работает. На частоте К.О.Н.Т.У.Р. отвечают:
+
+"Бархан-9 не существует. Вы находитесь в зоне тишины.
+Оставайтесь на месте. Не отвечайте на голоса.
+Не включайте свет."
+
+Свет гаснет. Фигура в форме К.О.Н.Т.У.Р. делает шаг вперёд.
+
+Последнее, что ты слышишь — свой голос, произносящий чужое имя.
+
+// АРХИВ К.О.Н.Т.У.Р. // ЗАПИСЬ 9-ГО УРОВНЯ // ДОСТУП ЗАПРЕЩЁН`,
+    ending: 'protocol', endingType: 'bad',
+    onEnter: () => { AudioEngine.stopHum(); AudioEngine.endingSound('bad'); }
+  },
+
+  ending_new: {
+    title: 'КОНЦОВКА: "НОВЫЙ ЖИТЕЛЬ"',
+    text: `Ты возвращаешься. В городе ещё есть те, кто отзывается на свои имена.
+Ты находишь троих. Вы вместе идёте к выходу.
+
+Но на КПП шлагбаум опущен.
+Журнал въездов открыт на новой странице.
+
+Там уже записано твоё имя.
+А ниже — приписка: "Прибыл. Остался. Отзывается."
+
+Где-то в вентиляции звучит голос. Твой голос.
+Он зовёт тебя по имени. И ты не уверен, стоит ли отвечать.
+
+// АРХИВ К.О.Н.Т.У.Р. // ЗАПИСЬ 9-ГО УРОВНЯ // ДОСТУП: ВЕЧНО`,
+    ending: 'new', endingType: 'bad',
+    onEnter: () => { AudioEngine.stopHum(); AudioEngine.endingSound('bad'); }
+  },
+
+  ending_listen: {
+    title: 'КОНЦОВКА: "СЛУШАТЕЛЬ"',
+    text: `Ты остаёшься. Садишься у стены шахты.
+Рация шипит. Голоса в вентиляции говорят хором.
+Ты слушаешь.
+
+Проходит час. День. Неделя.
+Ты больше не помнишь, зачем пришёл.
+
+Ты помнишь только голоса. И они помнят тебя.
+Ты становишься частью Хора.
+
+// АРХИВ К.О.Н.Т.У.Р. // ЗАПИСЬ 9-ГО УРОВНЯ // ДОСТУП: ХОР`,
+    ending: 'listen', endingType: 'bad',
+    onEnter: () => { AudioEngine.stopHum(); AudioEngine.endingSound('bad'); }
+  },
+
+  ending_archive: {
+    title: 'КОНЦОВКА: "АРХИВ"',
+    text: `Ты не идёшь к выходу. Ты возвращаешься в администрацию.
+Открываешь папку. Достаёшь чистый лист.
+Пишешь отчёт.
+
+"Объект 9. Бархан-9. Состояние: активен.
+Сущности: Перекожник, Габар, Каналотварь, Мимик, Хор.
+Споринол: не лечит. Уксус: замедляет.
+Мэр: отзывается на 'Тишина'.
+Рекомендация: не включать свет в коридоре."
+
+Ты подписываешь. Ставишь дату.
+Ты больше не архивист. Ты — архив.
+
+// АРХИВ К.О.Н.Т.У.Р. // ЗАПИСЬ 9-ГО УРОВНЯ // ДОСТУП: АРХИВ`,
+    ending: 'archive', endingType: 'neutral',
+    onEnter: () => { AudioEngine.stopHum(); AudioEngine.endingSound('neutral'); }
+  },
+
+  ending_escape: {
+    title: 'КОНЦОВКА: "ВЫХОД"',
+    text: `Ты проходишь мимо фигуры. К свету.
+Свет становится ярче. Ты выходишь.
+
+Снаружи — не Бархан-9. Снаружи — другой город.
+Другое время. Другие люди.
+
+На стене у выхода — табличка:
+"Добро пожаловать в Бархан-10."
+
+Ты понимаешь: выхода не существует.
+Существует только следующий город.
+
+// АРХИВ К.О.Н.Т.У.Р. // ЗАПИСЬ 10-ГО УРОВНЯ // ДОСТУП: ОТКРЫТ`,
+    ending: 'escape', endingType: 'neutral',
+    onEnter: () => { AudioEngine.stopHum(); AudioEngine.endingSound('neutral'); }
+  },
+
+  ending_burn: {
+    title: 'КОНЦОВКА: "ОЧИЩЕНИЕ"',
+    text: `Ты возвращаешься в подвал. Берёшь уксус.
+Обливаешь стены. Вентиляцию. Решётки.
+
+Запах Йод-Резорцинола-А заполняет всё.
+Голоса стихают. Один за другим.
+
+Ты выходишь из города. За спиной — тишина.
+Настоящая тишина.
+
+Но через неделю ты начинаешь слышать своё имя.
+Шёпотом. Из вентиляции.
+
+// АРХИВ К.О.Н.Т.У.Р. // ЗАПИСЬ 9-ГО УРОВНЯ // СТАТУС: НЕСТАБИЛЕН`,
+    ending: 'burn', endingType: 'neutral',
+    onEnter: () => { AudioEngine.stopHum(); AudioEngine.endingSound('neutral'); }
+  },
+
+  ending_silence: {
+    title: 'КОНЦОВКА: "ТИШИНА"',
+    text: `Ты не отвечаешь. Ни на один голос.
+Ни на рацию. Ни на имя.
+
+Ты выходишь из города молча.
+Никто тебя не останавливает.
+
+Ты возвращаешься в архив. Пишешь: "Объект 9. Тишина."
+И закрываешь папку.
+
+Но иногда, поздно ночью, ты слышишь, как вентиляция в твоём доме
+гудит чуть громче обычного.
+
+// АРХИВ К.О.Н.Т.У.Р. // ЗАПИСЬ 9-ГО УРОВНЯ // ДОСТУП: ЗАКРЫТ`,
+    ending: 'silence', endingType: 'good',
+    onEnter: () => { AudioEngine.stopHum(); AudioEngine.endingSound('good'); }
+  }
+};
+
+// Добавляем выбор в финал для очищения
+scenes.shaft.choices.push(
+  { text: 'Вернуться в подвал с уксусом и очистить', next: 'ending_burn', condition: () => state.items.includes('Уксус (бутылка)') }
+);
+
+// ============ UI ============
+const sceneEl = document.getElementById('scene');
+const titleEl = document.getElementById('title');
+const choicesEl = document.getElementById('choices');
+const logEl = document.getElementById('log');
+const inventoryEl = document.getElementById('inventory');
+const anxietyFill = document.getElementById('anxiety-fill');
+const anxietyNum = document.getElementById('anxiety-num');
+const anxietyWrap = document.getElementById('anxiety-wrap');
+const bgAlarm = document.getElementById('bg-alarm');
+const saveIndicator = document.getElementById('save-indicator');
+
+function addAnxiety(n) {
+  state.anxiety = Math.min(12, state.anxiety + n);
+  updateAnxiety();
+  if (n > 0) AudioEngine.alarm();
+  if (state.anxiety >= 12 && !state.flags.gameOver) {
+    state.flags.gameOver = true;
+    setTimeout(() => { AudioEngine.stopHum(); showScene('ending_protocol'); }, 600);
+  }
+}
+
+function updateAnxiety() {
+  const pct = Math.min(100, (state.anxiety / 12) * 100);
+  anxietyFill.style.width = pct + '%';
+  anxietyNum.textContent = state.anxiety;
+  anxietyWrap.classList.toggle('high', state.anxiety >= 9);
+  bgAlarm.classList.toggle('active', state.anxiety >= 9);
+  if (state.anxiety >= 9) AudioEngine.glitch();
+}
+
+function addItem(name) {
+  if (!state.items.includes(name)) {
+    state.items.push(name);
+    log('Получен предмет: ' + name);
+    updateInventory();
+  }
+}
+
+function updateInventory() {
+  if (state.items.length === 0) { inventoryEl.innerHTML = ''; return; }
+  inventoryEl.innerHTML = '<span class="label">ИНВЕНТАРЬ:</span> ' +
+    state.items.map(i => '<span>' + i + '</span>').join(' · ');
+}
+
+function log(msg) {
+  state.logLines.push('> ' + msg);
+  if (state.logLines.length > 50) state.logLines.shift();
+  renderLog();
+}
+
+function renderLog() {
+  logEl.innerHTML = state.logLines.map(l => '<div>' + l + '</div>').join('');
+  logEl.scrollTop = logEl.scrollHeight;
+}
+
+function saveGame() {
+  try {
+    localStorage.setItem(SAVE_KEY, JSON.stringify({
+      anxiety: state.anxiety, flags: state.flags, items: state.items,
+      scene: state.scene, visited: state.visited, logLines: state.logLines.slice(-50),
+      endingsFound: state.endingsFound
+    }));
+    saveIndicator.textContent = '// прогресс сохранён';
+    setTimeout(() => { saveIndicator.textContent = ''; }, 1500);
+  } catch(e) {}
+}
+
+function loadGame() {
+  try {
+    const raw = localStorage.getItem(SAVE_KEY);
+    if (!raw) return false;
+    const data = JSON.parse(raw);
+    state = { ...defaultState(), ...data };
+    return true;
+  } catch(e) { return false; }
+}
+
+function showEndingList() {
+  const found = loadEndingsList();
+  const all = ['echo','protocol','new','listen','archive','escape','burn','silence'];
+  const names = {
+    echo:'ЭХО', protocol:'ПРОТОКОЛ', new:'НОВЫЙ ЖИТЕЛЬ',
+    listen:'СЛУШАТЕЛЬ', archive:'АРХИВ', escape:'ВЫХОД',
+    burn:'ОЧИЩЕНИЕ', silence:'ТИШИНА'
+  };
+  const html = all.map(id => {
+    const cls = found.includes(id) ? 'found' : 'missing';
+    return '<span class="' + cls + '">' + (found.includes(id) ? '✓ ' : '— ') + names[id] + '</span>';
+  }).join(' · ');
+  return '<div class="ending-list">НАЙДЕНО КОНЦОВОК: ' + found.length + '/8<br>' + html + '</div>';
+}
+
+function showScene(id) {
+  const scene = scenes[id];
+  if (!scene) return;
+  state.scene = id;
+  if (!state.visited.includes(id)) state.visited.push(id);
+
+  titleEl.textContent = scene.title;
+  sceneEl.innerHTML = '';
+  sceneEl.textContent = scene.text;
+
+  if (scene.onEnter) scene.onEnter();
+
+  choicesEl.innerHTML = '';
+
+  if (scene.ending) {
+    saveEndingFound(scene.ending);
+    const btn = document.createElement('button');
+    btn.className = 'choice restart';
+    btn.textContent = 'Начать заново';
+    btn.onclick = () => { clearSave(); location.reload(); };
+    choicesEl.appendChild(btn);
+
+    const badge = document.createElement('div');
+    badge.className = 'ending-badge';
+    badge.textContent = 'КОНЦОВКА: ' + scene.ending.toUpperCase();
+    sceneEl.appendChild(badge);
+
+    const list = document.createElement('div');
+    list.innerHTML = showEndingList();
+    choicesEl.appendChild(list);
+
+    if (state.anxiety >= 9) document.getElementById('game').classList.add('glitch');
+    saveGame();
+    return;
+  }
+
+  scene.choices.forEach(ch => {
+    if (ch.condition && !ch.condition()) return;
+    const btn = document.createElement('button');
+    btn.className = 'choice';
+    btn.textContent = ch.text;
+    btn.onclick = () => {
+      AudioEngine.resume();
+      AudioEngine.beep(330, 0.06, 'square', 0.05);
+      saveGame();
+      showScene(ch.next);
+    };
+    choicesEl.appendChild(btn);
+  });
+
+  updateInventory();
+  renderLog();
+  saveGame();
+}
+
+function clearSave() {
+  try { localStorage.removeItem(SAVE_KEY); } catch(e){}
+}
+
+// ============ СТАРТ ============
+(function init() {
+  const loaded = loadGame();
+  if (loaded) {
+    updateAnxiety();
+    updateInventory();
+    renderLog();
+    showScene(state.scene || 'start');
+  } else {
+    state = defaultState();
+    updateAnxiety();
+    showScene('start');
+  }
+
+  document.addEventListener('click', function unlockAudio() {
+    AudioEngine.resume();
+    if (state.scene && !scenes[state.scene]?.ending) AudioEngine.startHum();
+    document.removeEventListener('click', unlockAudio);
+  }, { once: true });
+})();
+</script>
+</body>
+</html>
